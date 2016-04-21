@@ -136,8 +136,7 @@ def link_sabre_data(booking_headers, missing_hotels,
     # link the data up!
     salesforce_booking_ref = segment_link[[sam_hotel_id, costing_id]]
     salesforce_hotel_ref = hotel_link[sam_hotel_id]
-    email = hotel_email[sam_hotel_id]
-
+    
     #The imported table is slightly different to the TI SAM fields
     booking_array = [
       chain, 
@@ -176,7 +175,7 @@ def link_sabre_data(booking_headers, missing_hotels,
     ]
 
     if !salesforce_hotel_ref
-      missing_hotels[sam_hotel_id] = [chain, hotel_name, sam_hotel_id, email, hotel_address]
+      missing_hotels[sam_hotel_id] = [chain, hotel_name, sam_hotel_id, "unknown@unknown.com", "unknown address"]
     elsif !salesforce_booking_ref
       new_bookings << booking_array
     else
@@ -194,7 +193,7 @@ def link_galileo_data(booking_headers, missing_hotels,
                   segment_link,
                   hotel_link, hotel_email)
   
-  #return
+  return
 
   puts "Loading the MOS hotel data and integrating data"
   count = 0
@@ -204,8 +203,31 @@ def link_galileo_data(booking_headers, missing_hotels,
   hotel_match_count = 0
   unmatched_count = 0
   matched_hotels = []
-  
+  # there were serveral passengers name missing from the Owens report
 
+  commission_names = {}
+  commission_header = {}
+  
+  puts "Loading the trip id and names"
+   
+  CSV.foreach('./data/mos_hcr.csv') do |row|
+    count+=1
+    #puts "#{row}"
+    if count == 1
+      row.each_with_index do |header,i|
+        commission_header[header] = i
+      end
+      next
+    end
+     
+    trip_id = row[commission_header['trip_id']].to_i
+    travellers = row[commission_header['travellers']].strip
+    commission_names[trip_id] = travellers
+  end
+
+
+  puts "Loading the MOS hotel data and integrating data"
+  count = 0
   CSV.foreach('./data/gal_test.csv') do |row|
     count+=1
     puts "#{row}"
@@ -215,8 +237,9 @@ def link_galileo_data(booking_headers, missing_hotels,
       end
       next
     end
+    
      
-    booking_id = row[mos_header['trip_id']].to_i
+    booking_id = row[mos_header['trip_id']].to_i 
     company = row[mos_header['company']].strip
     consultant = row[mos_header['consultants']].strip
     costing_id = row[mos_header['costing_id']].to_i
@@ -226,12 +249,9 @@ def link_galileo_data(booking_headers, missing_hotels,
     hotel_address = row[mos_header['hotel_address']].strip
     departure_day = row[mos_header['departure_date']].to_xls_date
     duration = row[mos_header['duration']].to_i
-    #puts departure_day
-    #puts row[mos_header['departure_date']]
     ret_day = DateTime.strptime(row[mos_header['departure_date']], "%Y-%m-%d") + duration
     return_day = ret_day.strftime("%Y-%m-%dT00:00:00.00Z")
-    #puts return_day
-    passenger_name = row[mos_header['travellers']]
+    passenger_name = commission_names[booking_id]
     hotel_city = row[mos_header['hotel_city']].strip 
     confirmation_id = row[mos_header['confirmation_number']].strip
     quantity = row[mos_header['quantity']].strip
